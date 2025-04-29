@@ -48,7 +48,7 @@ generate_unique_name() {
 }
 
 if [ -n "$max_depth" ]; then
-  find_cmd=(find "$input_dir" -type f -maxdepth "$max_depth")
+  find_cmd=(find "$input_dir" -maxdepth "$max_depth" -type f)
 else
   find_cmd=(find "$input_dir" -type f)
 fi
