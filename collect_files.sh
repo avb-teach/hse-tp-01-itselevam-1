@@ -1,70 +1,58 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
-if [ "$#" -lt 2 ]; then
-  echo "Использование: $0 <папка_с_файлами> <папка_куда_копировать> [--max_depth N]"
-  exit 1
-fi
+import sys
+import os
+import shutil
 
-input_dir="$1"
-output_dir="$2"
-max_depth=""
+def print_usage():
+    print(f"Использование: {sys.argv[0]} <исходная_папка> <папка_назначения> [--max_depth N]")
+    sys.exit(1)
 
-if [ "$#" -eq 4 ] && [ "$3" = "--max_depth" ]; then
-  max_depth="$4"
-  if ! [[ "$max_depth" =~ ^[0-9]+$ ]]; then
-    echo "Ошибка: max_depth должен быть числом"
-    exit 1
-  fi
-fi
+def unique_name(dest_dir, filename):
+    base, ext = os.path.splitext(filename)
+    candidate = filename
+    i = 1
+    while os.path.exists(os.path.join(dest_dir, candidate)):
+        candidate = f"{base}_{i}{ext}"
+        i += 1
+    return candidate
 
-input_dir="${input_dir%/}"
+def main():
+    if len(sys.argv) < 3:
+        print_usage()
 
-if [ ! -d "$input_dir" ]; then
-  echo "Папка '$input_dir' не найдена"
-  exit 1
-fi
+    src = sys.argv[1]
+    dst = sys.argv[2]
+    max_depth = None
 
-mkdir -p "$output_dir"
+    if len(sys.argv) == 5 and sys.argv[3] == '--max_depth':
+        if not sys.argv[4].isdigit():
+            print("max_depth должен быть числом")
+            sys.exit(1)
+        max_depth = int(sys.argv[4])
 
-generate_unique_name() {
-  dir="$1"
-  filename="$2"
-  base="${filename%.*}"
-  ext="${filename##*.}"
+    if not os.path.isdir(src):
+        print(f"Папка {src} не найдена")
+        sys.exit(1)
 
-  if [ "$base" = "$filename" ]; then
-    ext=""
-  else
-    ext=".$ext"
-  fi
+    src = os.path.abspath(src)
+    dst = os.path.abspath(dst)
 
-  target="$dir/$filename"
-  n=1
+    for root, dirs, files in os.walk(src):
+        rel = os.path.relpath(root, src)
+        depth = 0 if rel == '.' else rel.count(os.sep) + 1
+        if max_depth is not None and depth > max_depth:
+            dirs.clear()
+            continue
 
-  while [ -e "$target" ]; do
-    target="$dir/${base}_$n${ext}"
-    n=$((n + 1))
-  done
+        target_dir = os.path.join(dst, rel) if rel != '.' else dst
+        os.makedirs(target_dir, exist_ok=True)
 
-  echo "$target"
-}
+        for f in files:
+            src_file = os.path.join(root, f)
+            dest_file = unique_name(target_dir, f)
+            shutil.copy2(src_file, os.path.join(target_dir, dest_file))
 
-if [ -n "$max_depth" ]; then
-  find_cmd=(find "$input_dir" -maxdepth "$max_depth" -type f)
-else
-  find_cmd=(find "$input_dir" -type f)
-fi
+if __name__ == '__main__':
+    main()
 
-"${find_cmd[@]}" | while IFS= read -r file; do
-  rel_path="${file#$input_dir/}"
-  rel_dir=$(dirname "$rel_path")
-
-  target_dir="$output_dir/$rel_dir"
-  mkdir -p "$target_dir"
-
-  filename=$(basename "$file")
-
-  target=$(generate_unique_name "$target_dir" "$filename")
-
-  cp "$file" "$target"
-done
