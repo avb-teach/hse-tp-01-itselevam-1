@@ -17,6 +17,8 @@ if [ "$#" -eq 4 ] && [ "$3" = "--max_depth" ]; then
   fi
 fi
 
+input_dir="${input_dir%/}"
+
 if [ ! -d "$input_dir" ]; then
   echo "Папка '$input_dir' не найдена"
   exit 1
